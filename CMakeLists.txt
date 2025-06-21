@@ -6,5 +6,5 @@ project(BitTorrentClient)
 
 add_executable(BitTorrentClient main.cpp)
 
-target_include_directories(BitTorrentClient PRIVATE C:/work_related/coding_programs/BitTorrentClient_from_scratch/include)
+target_include_directories(BitTorrentClient PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
