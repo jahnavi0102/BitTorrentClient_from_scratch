@@ -7,6 +7,20 @@
 
 namespace bc = bencode;
 
+struct TorrentFile {
+    std::string announce;
+    std::string info_hash;
+    std::string name;
+    int piece_length;
+    std::vector<std::string> pieces;
+
+    TorrentFile(const std::string& announce, const std::string& info_hash,
+                const std::string& name, int piece_length,
+                const std::vector<std::string>& pieces)
+        : announce(announce), info_hash(info_hash), name(name),
+          piece_length(piece_length), pieces(pieces) {}
+};
+
 class ReadFile {
     public:
         std::vector<uint8_t> getBytesFromFile(const std::string file_path) {
@@ -28,7 +42,7 @@ class ReadFile {
         }
 };
 
-void print_bencode(const bencode::data& data) {
+void parse_buffer(const bencode::data& data) {
     auto variant = data.base();  // Get the std::variant inside
 
     if (std::holds_alternative<bencode::integer>(variant)) {
@@ -51,7 +65,7 @@ void print_bencode(const bencode::data& data) {
         std::cout << "[ ";
         const auto& list = std::get<bencode::list>(variant);
         for (const auto& item : list) {
-            print_bencode(item);  // recursive call for each item
+            parse_buffer(item);  // recursive call for each item
         }
         std::cout << "] ";
     } else if (std::holds_alternative<bencode::dict>(variant)) {
@@ -59,7 +73,7 @@ void print_bencode(const bencode::data& data) {
         const auto& dict = std::get<bencode::dict>(variant);
         for (const auto& [key, value] : dict) {
             std::cout << key << ": ";
-            print_bencode(value);  // recursive call for each value
+            parse_buffer(value);  // recursive call for each value
         }
         std::cout << "} ";
     }
@@ -81,10 +95,8 @@ int main() {
         std::cout << "File read successfully, size: " << bytes.size() << " bytes" << std::endl;
         bencode::data data = bencode::decode(bytes);
 
-        print_bencode(data);
+        parse_buffer(data);
         std::cout << std::endl;
-        // bc::bvalue b = bc::decode_value(data);
-        // std::cout << "Decoded bencode data: " << b << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

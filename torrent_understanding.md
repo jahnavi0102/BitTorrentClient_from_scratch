@@ -39,6 +39,8 @@ d
     e
 e
 
+# Returned after parsing the buffer
+{ announce: "http://bttracker.debian.org:6969/announce" comment: "Debian CD from cdimage.debian.org" created by: "mktorrent 1.1" creation date: 1747482459 info: { length: 709885952 name: "debian-edu-12.11.0-amd64-netinst.iso" piece length: 262144 pieces: <binary string of length 54160> } url-list: [ "https://cdimage.debian.org/cdimage/release/edu/amd64/iso-cd/debian-edu-12.11.0-amd64-netinst.iso" "https://cdimage.debian.org/cdimage/archive/edu/amd64/iso-cd/debian-edu-12.11.0-amd64-netinst.iso" ] }
 
 
 # Metainfo File Structure
