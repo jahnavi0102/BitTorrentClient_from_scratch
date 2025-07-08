@@ -4,9 +4,112 @@
 #include <fstream>
 #include <memory>
 #include <bencoding.hpp>
-#include <torrentfile.cpp>
+#include <iomanip>
+#include <openssl/sha.h>
+
 
 namespace bc = bencode;
+
+struct BencodedInfo {
+    std::string name;
+    int piece_length;
+    int length;
+    std::string pieces;
+
+    BencodedInfo(const std::string& name, int piece_length,
+                const std::string& pieces, int length = 0)
+        : name(name), piece_length(piece_length), pieces(pieces), length(length) {}
+    BencodedInfo() : name(""), piece_length(0), length(0), pieces("") {}
+    void setName(const std::string& name) {
+        this->name = name;
+    };
+    void setPieceLength(int piece_length) {
+        this->piece_length = piece_length;
+    };
+    void setLength(int length) {
+        this->length = length;
+    };
+    void setPieces(const std::string& pieces) {
+        this->pieces = pieces;
+    };
+    void print() const {
+        std::cout << "Name: " << name << "\n"
+                  << "Piece Length: " << piece_length << "\n"
+                  << "Length: " << length << "\n"
+                  << "Pieces: " << pieces << "\n";
+    };
+    bool operator==(const BencodedInfo& other) const {
+        return name == other.name &&
+               piece_length == other.piece_length &&
+               length == other.length &&
+               pieces == other.pieces;
+    };
+};
+
+
+struct BencodedFile {
+    std::string announce;
+    std::string comment;
+    std::string created_by;
+    std::string creation_date;
+    std::string encoding;
+    BencodedInfo info_hash;
+
+    BencodedFile(const std::string& announce, const std::string& comment,
+                 const std::string& created_by, const std::string& creation_date,
+                 const std::string& encoding, const BencodedInfo& info_hash)
+        : announce(announce), comment(comment), created_by(created_by),
+          creation_date(creation_date), encoding(encoding), info_hash(info_hash) {}
+    BencodedFile() : announce(""), comment(""), created_by(""),
+                     creation_date(""), encoding(""),
+                     info_hash("", 0, "") {}
+    void setAnnounce(const std::string& announce) {
+        this->announce = announce;
+    };  
+    void setComment(const std::string& comment) {
+        this->comment = comment;
+    };
+    void setCreatedBy(const std::string& created_by) {
+        this->created_by = created_by;
+    };
+    void setCreationDate(const std::string& creation_date) {
+        this->creation_date = creation_date;
+    };
+    void setEncoding(const std::string& encoding) {
+        this->encoding = encoding;
+    };
+    void setInfoHash(const BencodedInfo& info_hash) {
+        this->info_hash = info_hash;
+    };
+    void print() const {
+        std::cout << "Announce: " << announce << "\n"
+                  << "Comment: " << comment << "\n"
+                  << "Created by: " << created_by << "\n"
+                  << "Creation date: " << creation_date << "\n"
+                  << "Encoding: " << encoding << "\n"
+                  << "Info Hash:\n"
+                  << "  Name: " << info_hash.name << "\n"
+                  << "  Piece Length: " << info_hash.piece_length << "\n"
+                  << "  Pieces: " << info_hash.pieces << "\n";
+    };
+    bool operator==(const BencodedFile& other) const {
+        return announce == other.announce &&
+               comment == other.comment &&
+               created_by == other.created_by &&
+               creation_date == other.creation_date &&
+               encoding == other.encoding &&
+               info_hash == other.info_hash;
+    };
+
+};
+
+std::array<uint8_t, 20> compute_info_hash(const BencodedInfo& info) {
+    // Placeholder for actual hash computation logic
+    std::array<uint8_t, 20> hash = {};
+    SHA1(reinterpret_cast<const unsigned char*>(&info.name[0]),
+         info.name.size(), hash.data());
+    return hash;
+}
 
 class ReadFile {
     public:
@@ -28,6 +131,54 @@ class ReadFile {
             return std::vector<uint8_t>(buffer.begin(), buffer.end());
         }
 };
+
+
+class Tracker {
+public:
+    Tracker(const std::string& announce_url)
+        : announce_url_(announce_url) {}
+
+    // Example: send a simple GET request to the tracker (HTTP only)
+    void announce(const std::string& info_hash, const std::string& peer_id, int port, int uploaded, int downloaded, int left) {
+        // Build the announce URL with query parameters
+        std::ostringstream url;
+        url << announce_url_
+            << "?info_hash=" << url_encode(info_hash)
+            << "&peer_id=" << url_encode(peer_id)
+            << "&port=" << port
+            << "&uploaded=" << uploaded
+            << "&downloaded=" << downloaded
+            << "&left=" << left
+            << "&compact=1";
+        std::cout << "Tracker announce URL: " << url.str() << std::endl;
+
+        // You would use a HTTP library to send the GET request here
+        // and parse the response to get the peer list.
+    }
+
+    private:
+    std::string announce_url_;
+
+    // Simple URL encoding function for info_hash and peer_id
+    std::string url_encode(const std::string& value) {
+        std::ostringstream escaped;
+        escaped.fill('0');
+        escaped << std::hex;
+        for (unsigned char c : value) {
+            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                escaped << c;
+            } else {
+                escaped << '%' << std::setw(2) << int(c);
+            }
+        }
+        return escaped.str();
+    }
+};
+
+
+
+
+
 
 // void parse_buffer(const bencode::data& data) {
 //     auto variant = data.base();  // Get the std::variant inside
@@ -114,7 +265,19 @@ int main() {
 
         std::array<uint8_t, 20> sh1_info_hash = compute_info_hash(bencoded_info);
         
+        std::string info_hash_str(reinterpret_cast<const char*>(sh1_info_hash.data()), sh1_info_hash.size());
 
+        // Generate a random peer_id (20 bytes, here just an example)
+        std::string peer_id = "-BC0001-123456789012";
+
+        int port = 6881;      // Your listening port
+        int uploaded = 0;     // Bytes uploaded so far
+        int downloaded = 0;   // Bytes downloaded so far
+        int left = length;    // Bytes left to download
+
+        // Announce to tracker
+        Tracker tracker(announce);
+        tracker.announce(info_hash_str, peer_id, port, uploaded, downloaded, left);
 
         // parse_buffer(data);
         std::cout << std::endl;
