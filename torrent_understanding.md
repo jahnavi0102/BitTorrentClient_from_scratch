@@ -86,3 +86,43 @@ Current best-practice is to keep the piece size to 512KB or less, for torrents a
 Every piece is of equal length except for the final piece, which is irregular. The number of pieces is thus determined by 'ceil( total length / piece size )'.
 For the purposes of piece boundaries in the multi-file case, consider the file data as one long continuous stream, composed of the concatenation of each file in the order listed in the files list. The number of pieces and their boundaries are then determined in the same manner as the case of a single file. Pieces may overlap file boundaries.
 Each piece has a corresponding SHA1 hash of the data contained within that piece. These hashes are concatenated to form the pieces value in the above info dictionary. Note that this is not a list but rather a single string. The length of the string must be a multiple of 20.
+
+
+### Theory: BitTorrent Tracker Communication
+The BitTorrent protocol relies on trackers to help peers discover each other. When a client wants to download or seed a torrent, it sends an HTTP GET request (or sometimes POST, though GET is more common for initial announces) to the tracker's announce URL. This request contains various parameters that inform the tracker about the client's state.
+
+Announce Request Parameters (as seen in your code):
+info_hash: This is the SHA-1 hash of the "info" dictionary from the torrent file. It uniquely identifies the torrent.
+
+peer_id: A unique 20-byte identifier for your client.
+
+port: The port your client is listening on for incoming peer connections.
+
+uploaded: The total number of bytes uploaded by your client for this torrent.
+
+downloaded: The total number of bytes downloaded by your client for this torrent.
+
+left: The number of bytes remaining to download.
+
+compact: If set to 1, the tracker will return a compact peer list (IP and port concatenated) instead of a dictionary for each peer. This is the common and preferred way.
+
+event (Optional): Specifies the reason for the announce (e.g., started, completed, stopped). If omitted, it's a regular update.
+
+Tracker Response:
+The tracker responds with a bencoded dictionary containing information about the torrent and, most importantly, a list of peers.
+
+##### Key elements in the tracker's response:
+
+interval: The minimum number of seconds the client should wait before sending another announce request.
+
+min interval (Optional): A minimum reannounce interval that is smaller than interval and which the client must wait.
+
+peers: This is where the magic happens.
+
+Compact format: If compact=1 was in the request, this will be a string of concatenated 6-byte entries. Each 6-byte entry represents a peer: 4 bytes for the IP address (network byte order) and 2 bytes for the port (network byte order).
+
+Non-compact format: If compact was not used or set to 0, this will be a list of dictionaries, where each dictionary represents a peer and contains peer id, ip, and port. The compact format is almost universally used by modern clients due to its efficiency.
+
+warning message (Optional): A human-readable warning message that clients can display.
+
+failure reason (Optional): If something went wrong, this field will contain a human-readable error message.
