@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <openssl/sha.h>
 #include <array>
+#include <curl/curl.h>
 
 
 namespace bc = bencode;
@@ -43,10 +44,39 @@ class ReadFile {
         }
 };
 
-std::string sendHttpRequest(const std::string& url){
+struct Peer {
+    std::string ip;
+    int port;
+    // Potentially add std::string id; for peer_id if parsing non-compact
+};
 
-    // TODO: Implement HTTP request logic and return response as std::string
-    return "";
+static size_t WriteCallback(){
+    return 1;
+};
+
+std::string sendHttpRequest(const std::string& url){
+    CURL *curl;
+    CURLcode res;
+    std::string readBuffer;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    curl = curl_easy_init();
+    if (curl){
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+
+        res = curl_easy_perform(curl);
+        if(res != CURLE_OK) {
+            throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+        }
+        curl_easy_cleanup(curl);
+    }
+
+    curl_global_cleanup();
+    return readBuffer;
 }
 
 class Tracker {
