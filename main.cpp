@@ -13,99 +13,6 @@ namespace bc = bencode;
 // CURL *curl;
 
 
-struct BencodedInfo {
-    std::string name;
-    int piece_length;
-    int length;
-    std::string pieces;
-
-    BencodedInfo(const std::string& name, int piece_length,
-                const std::string& pieces, int length = 0)
-        : name(name), piece_length(piece_length), pieces(pieces), length(length) {}
-    BencodedInfo() : name(""), piece_length(0), length(0), pieces("") {}
-    void setName(const std::string& name) {
-        this->name = name;
-    };
-    void setPieceLength(int piece_length) {
-        this->piece_length = piece_length;
-    };
-    void setLength(int length) {
-        this->length = length;
-    };
-    void setPieces(const std::string& pieces) {
-        this->pieces = pieces;
-    };
-    void print() const {
-        std::cout << "Name: " << name << "\n"
-                  << "Piece Length: " << piece_length << "\n"
-                  << "Length: " << length << "\n"
-                  << "Pieces: " << pieces << "\n";
-    };
-    bool operator==(const BencodedInfo& other) const {
-        return name == other.name &&
-               piece_length == other.piece_length &&
-               length == other.length &&
-               pieces == other.pieces;
-    };
-};
-
-
-struct BencodedFile {
-    std::string announce;
-    std::string comment;
-    std::string created_by;
-    std::string creation_date;
-    std::string encoding;
-    BencodedInfo info_hash;
-
-    BencodedFile(const std::string& announce, const std::string& comment,
-                 const std::string& created_by, const std::string& creation_date,
-                 const std::string& encoding, const BencodedInfo& info_hash)
-        : announce(announce), comment(comment), created_by(created_by),
-          creation_date(creation_date), encoding(encoding), info_hash(info_hash) {}
-    BencodedFile() : announce(""), comment(""), created_by(""),
-                     creation_date(""), encoding(""),
-                     info_hash("", 0, "") {}
-    void setAnnounce(const std::string& announce) {
-        this->announce = announce;
-    };  
-    void setComment(const std::string& comment) {
-        this->comment = comment;
-    };
-    void setCreatedBy(const std::string& created_by) {
-        this->created_by = created_by;
-    };
-    void setCreationDate(const std::string& creation_date) {
-        this->creation_date = creation_date;
-    };
-    void setEncoding(const std::string& encoding) {
-        this->encoding = encoding;
-    };
-    void setInfoHash(const BencodedInfo& info_hash) {
-        this->info_hash = info_hash;
-    };
-    void print() const {
-        std::cout << "Announce: " << announce << "\n"
-                  << "Comment: " << comment << "\n"
-                  << "Created by: " << created_by << "\n"
-                  << "Creation date: " << creation_date << "\n"
-                  << "Encoding: " << encoding << "\n"
-                  << "Info Hash:\n"
-                  << "  Name: " << info_hash.name << "\n"
-                  << "  Piece Length: " << info_hash.piece_length << "\n"
-                  << "  Pieces: " << info_hash.pieces << "\n";
-    };
-    bool operator==(const BencodedFile& other) const {
-        return announce == other.announce &&
-               comment == other.comment &&
-               created_by == other.created_by &&
-               creation_date == other.creation_date &&
-               encoding == other.encoding &&
-               info_hash == other.info_hash;
-    };
-
-};
-
 std::array<uint8_t, 20> compute_info_hash(const bencode::dict& info) {
     // Bencode the info dictionary and hash the resulting bytes
     std::array<uint8_t, 20> hash = {};
@@ -225,25 +132,10 @@ int main() {
         }
         bencode::dict info_dict = std::get<bencode::dict>(info_it->second);
 
-        
-        // Extract fields from "info" dictionary
-        // std::string name = std::get<bencode::string>(info_dict.at("name"));
-        // int piece_length = static_cast<int>(std::get<bencode::integer>(info_dict.at("piece length")));
         int length = static_cast<int>(std::get<bencode::integer>(info_dict.at("length")));
-        // std::string pieces = std::get<bencode::string>(info_dict.at("pieces"));
 
-        // // Extract top-level metadata
         std::string announce = std::get<bencode::string>(top_dict.at("announce"));
-        // std::string comment = std::get<bencode::string>(top_dict.at("comment"));
-        // std::string created_by = std::get<bencode::string>(top_dict.at("created by"));
-        // std::string creation_date = std::to_string(std::get<bencode::integer>(top_dict.at("creation date")));
-        // std::string encoding = std::get<bencode::string>(top_dict.at("encoding"));
-
-        // std::cout << "\nBencoded Info:\n";
-        // std::cout << "Torrent Name: " << name << "\n";
-        // std::cout << "Piece Length: " << piece_length << "\n";
-        // std::cout << "Length: " << length << "\n";
-        // std::cout << "Announce URL: " << announce << "\n";
+        
 
         // Compute info hash (you’ll define this function separately)
         std::array<uint8_t, 20> sha1_info_hash = compute_info_hash(info_dict);
@@ -258,55 +150,6 @@ int main() {
 
         Tracker tracker(announce);
         tracker.announce(info_hash_str, peer_id, port, uploaded, downloaded, left);
-
-            
-
-        // auto variant = data.base();
-
-        // // Step 2: Cast it to bencode::dict
-        // if (!std::holds_alternative<bencode::dict>(variant)) {
-        //     throw std::runtime_error("Top-level bencode structure is not a dictionary.");
-        // }
-
-
-        // std::cout << "start processing";
-        // bencode::dict top_dict = std::get<bencode::dict>(variant);
-        // bencode::dict info_dict = std::get<bencode::dict>(top_dict["info"]);
-        // std::string name = std::get<bencode::string>(info_dict["name"]);
-        // int piece_length = std::get<bencode::integer>(info_dict["piece length"]);
-        // int length = std::get<bencode::integer>(info_dict["length"]);
-        // std::string pieces = std::get<bencode::string>(info_dict["pieces"]);
-        // std::string announce = std::get<bencode::string>(top_dict["announce"]);
-        // std::string comment = std::get<bencode::string>(top_dict["comment"]);
-        // std::string created_by = std::get<bencode::string>(top_dict["created by"]);
-        // std::string creation_date = std::to_string(std::get<bencode::integer>(top_dict["creation date"]));  // converting to string
-        // std::string encoding = std::get<bencode::string>(top_dict["encoding"]);
-        // BencodedInfo info(name, piece_length, pieces, length);
-        // BencodedFile torrent_file(announce, comment, created_by, creation_date, encoding, info);
-
-        // // stroring bencoded info SSH-1 info exactly as it was stored in .torrent file
-        // std::cout << "Bencoded Info:\n";
-
-        // // std::string bencoded_info = bencode::encode(info_dict);
-
-        // std::array<uint8_t, 20> sh1_info_hash = compute_info_hash(info);
-        
-        // std::string info_hash_str(reinterpret_cast<const char*>(sh1_info_hash.data()), sh1_info_hash.size());
-
-        // // Generate a random peer_id (20 bytes, here just an example)
-        // std::string peer_id = "-BC0001-123456789012";
-
-        // int port = 6881;      // Your listening port
-        // int uploaded = 0;     // Bytes uploaded so far
-        // int downloaded = 0;   // Bytes downloaded so far
-        // int left = length;    // Bytes left to download
-
-        // // Announce to tracker
-        // Tracker tracker(announce);
-        // tracker.announce(info_hash_str, peer_id, port, uploaded, downloaded, left);
-
-        // // parse_buffer(data);
-        // std::cout << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
