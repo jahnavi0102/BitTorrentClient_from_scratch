@@ -1,27 +1,20 @@
+#include <fstream>
 #include <iostream>
 #include <vector>
 #include <string>
-#include <fstream>
-#include <memory>
-#include <bencoding.hpp>
-#include <iomanip>
-#include <openssl/sha.h>
 #include <array>
-#include <curl/curl.h>
+#include <sstream>  
+#include <openssl/sha.h> 
+#include <cctype> 
+#include <iomanip> 
+#include <memory>
+#include <cstdint>       
+#include <curl/curl.h> 
+#include <bencoding.hpp> 
 
 
-namespace bc = bencode;
-// CURL *curl;
 
 
-std::array<uint8_t, 20> compute_info_hash(const bencode::dict& info) {
-    // Bencode the info dictionary and hash the resulting bytes
-    std::array<uint8_t, 20> hash = {};
-    std::string bencoded_info_str = bencode::encode(info);
-    std::vector<uint8_t> bencoded_info(bencoded_info_str.begin(), bencoded_info_str.end());
-    SHA1(bencoded_info.data(), bencoded_info.size(), hash.data());
-    return hash;
-}
 
 class ReadFile {
     public:
@@ -41,7 +34,7 @@ class ReadFile {
             file.close();
             std::cout << "File read successfully, size: " << size << " bytes" << std::endl;
             return std::vector<uint8_t>(buffer.begin(), buffer.end());
-        }
+        };
 };
 
 struct Peer {
@@ -50,39 +43,50 @@ struct Peer {
     // Potentially add std::string id; for peer_id if parsing non-compact
 };
 
-static size_t WriteCallback(){
-    return 1;
-};
 
-std::string sendHttpRequest(const std::string& url){
-    CURL *curl;
-    CURLcode res;
-    std::string readBuffer;
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    curl = curl_easy_init();
-    if (curl){
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
-
-        res = curl_easy_perform(curl);
-        if(res != CURLE_OK) {
-            throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
-        }
-        curl_easy_cleanup(curl);
-    }
-
-    curl_global_cleanup();
-    return readBuffer;
-}
 
 class Tracker {
 public:
     Tracker(const std::string& announce_url)
         : announce_url_(announce_url) {}
+
+    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp){
+        size_t total_size = size * nmemb;
+        std::string* buffer_to_write_to = static_cast<std::string*>(userp);
+        buffer_to_write_to->append(static_cast<char*>(contents), total_size);
+
+        // IMPORTANT: Return the number of bytes we successfully handled.
+        // If we return anything less than total_size, libcurl will think
+        // something went wrong and might stop the transfer.
+        return total_size;
+    };
+
+    std::string sendHttpRequest(const std::string& url){
+        CURL *curl = nullptr;
+        CURLcode res;
+        std::string readBuffer;
+
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+
+        curl = curl_easy_init();
+        if (curl){
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+
+            res = curl_easy_perform(curl);
+            if(res != CURLE_OK) {
+                throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+            }
+            curl_easy_cleanup(curl);
+        }
+
+        curl_global_cleanup();
+        return readBuffer;
+    };
 
     // Example: send a simple GET request to the tracker (HTTP only)
     void announce(const std::string& info_hash, const std::string& peer_id, int port, int uploaded, int downloaded, int left) {
@@ -117,7 +121,7 @@ public:
     }
 
     private:
-    std::string announce_url_;
+        std::string announce_url_;
 
     // Simple URL encoding function for info_hash and peer_id
     std::string url_encode(const std::string& value) {
@@ -132,7 +136,16 @@ public:
             }
         }
         return escaped.str();
-    }
+    };
+};
+
+std::array<uint8_t, 20> compute_info_hash(const bencode::dict& info) {
+    // Bencode the info dictionary and hash the resulting bytes
+    std::array<uint8_t, 20> hash = {};
+    std::string bencoded_info_str = bencode::encode(info);
+    std::vector<uint8_t> bencoded_info(bencoded_info_str.begin(), bencoded_info_str.end());
+    SHA1(bencoded_info.data(), bencoded_info.size(), hash.data());
+    return hash;
 };
 
 
@@ -169,7 +182,11 @@ int main() {
 
         // Compute info hash (you’ll define this function separately)
         std::array<uint8_t, 20> sha1_info_hash = compute_info_hash(info_dict);
-        std::string info_hash_str(reinterpret_cast<const char*>(sha1_info_hash.data()), sha1_info_hash.size());
+        std::string info_hash_str;
+        info_hash_str.reserve(sha1_info_hash.size());
+        for (uint8_t byte : sha1_info_hash) {
+            info_hash_str.push_back(static_cast<char>(byte));
+        }
 
         // Tracker announce
         std::string peer_id = "-BC0001-123456789012";  // 20-byte peer id

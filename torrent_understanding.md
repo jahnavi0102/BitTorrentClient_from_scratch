@@ -126,3 +126,18 @@ Non-compact format: If compact was not used or set to 0, this will be a list of 
 warning message (Optional): A human-readable warning message that clients can display.
 
 failure reason (Optional): If something went wrong, this field will contain a human-readable error message.
+
+
+### How WriteCallback Operates:
+
+void *contents: This is a pointer to the actual raw data chunk that libcurl just received.
+
+size_t size: The size of a single element (usually 1 byte).
+
+size_t nmemb: The number of elements in the contents buffer. So, the total size of the chunk is size * nmemb.
+
+void *userp: This is the &readBuffer you passed via CURLOPT_WRITEDATA. Inside the callback, you cast it back to a std::string* (i.e., ((std::string*)userp)).
+
+((std::string*)userp)->append((char*)contents, size * nmemb);: This line is the core! It takes the received data chunk (contents with size size * nmemb) and appends it to your readBuffer string.
+
+return size * nmemb;: It's essential that your WriteCallback returns the number of bytes it successfully handled. If it returns a different number (especially 0), libcurl assumes an error occurred and will abort the transfer.
