@@ -141,3 +141,27 @@ void *userp: This is the &readBuffer you passed via CURLOPT_WRITEDATA. Inside th
 ((std::string*)userp)->append((char*)contents, size * nmemb);: This line is the core! It takes the received data chunk (contents with size size * nmemb) and appends it to your readBuffer string.
 
 return size * nmemb;: It's essential that your WriteCallback returns the number of bytes it successfully handled. If it returns a different number (especially 0), libcurl assumes an error occurred and will abort the transfer.
+
+
+You're dealing with BitTorrent tracker responses, which are primarily Bencoded dictionaries. The key difference between "compact" and "non-compact" responses lies in how the peers information is encoded.
+
+Here's a breakdown of how to parse both:
+
+## Common Tracker Response Structure
+Regardless of compact or non-compact, a tracker response is always a Bencoded dictionary. It typically contains these keys:
+
+interval (integer): The minimum number of seconds the client should wait before making another request to the tracker.
+
+complete (integer, optional): The number of seeders (peers with the complete file).
+
+incomplete (integer, optional): The number of leechers (peers still downloading the file).
+
+peers: This is where the difference between compact and non-compact comes in.
+
+failure reason (string, optional): If present, this indicates an error and no other keys should be expected. The value is a human-readable error message.
+
+warning message (string, optional): Similar to failure reason, but the response is still processed normally. A warning message is displayed to the user.
+
+min interval (integer, optional): The absolute minimum announce interval. Clients must not reannounce more frequently than this.
+
+tracker id (string, optional): A string that the client should send back on its next announcements.

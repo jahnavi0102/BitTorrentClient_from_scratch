@@ -3,39 +3,15 @@
 #include <vector>
 #include <string>
 #include <array>
-#include <sstream>  
-#include <openssl/sha.h> 
+#include <sstream> 
 #include <cctype> 
 #include <iomanip> 
 #include <memory>
-#include <cstdint>       
+#include <cstdint>   
+#include <openssl/sha.h> 
 #include <curl/curl.h> 
 #include <bencoding.hpp> 
 
-
-
-
-
-class ReadFile {
-    public:
-        std::vector<uint8_t> getBytesFromFile(const std::string file_path) {
-            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
-            std::cout << "Reading file: " << file_path << std::endl;
-            if (!file.is_open()) {
-                throw std::runtime_error("Could not open file: " + file_path);
-            }
-            std::streamsize size = file.tellg();
-            file.seekg(0, std::ios::beg);
-
-            std::vector<char> buffer(size);
-            if (!file.read(buffer.data(), size)) {
-                throw std::runtime_error("Error while reading file");
-            }
-            file.close();
-            std::cout << "File read successfully, size: " << size << " bytes" << std::endl;
-            return std::vector<uint8_t>(buffer.begin(), buffer.end());
-        };
-};
 
 struct Peer {
     std::string ip;
@@ -43,9 +19,9 @@ struct Peer {
     // Potentially add std::string id; for peer_id if parsing non-compact
 };
 
-
-
-
+void parseTrackerResponse (){
+    
+}
 
 class Tracker {
 public:
@@ -102,22 +78,29 @@ public:
             << "&compact=1";
         std::cout << "Tracker announce URL: " << url.str() << std::endl;
 
-        // TODO: Use an HTTP library to send the GET request
-        // This part requires adding an external library and its setup.
-        // For demonstration, let's assume a hypothetical sendHttpRequest function
-        // that returns the response body as a std::string.
-
         try {
             std::string response_body = sendHttpRequest(url.str());
-            std::cout << "Tracker Response: " << response_body << std::endl;
+            bencode::data data = bencode::decode(response_body);
+            
+            std::cout << "decoded_response" << std::endl;
+            auto decoded_response = data.base();
+
+            if (!std::holds_alternative<bencode::dict>(decoded_response)) {
+                throw std::runtime_error("Top-level bencode structure is not a dictionary.");
+            }
 
             // Step 2: Parse the bencoded response
-            // parseTrackerResponse(response_body);
+            // call parseTrackerResponse(decoded_response)
+
+            // cout << decoded_response["peers"];
+            
+            // std::cout << "Tracker Response: " << response_body << std::endl;
+
+            
 
         } catch (const std::exception& e) {
             std::cerr << "HTTP request failed: " << e.what() << std::endl;
         }
-        
     }
 
     private:
@@ -148,13 +131,34 @@ std::array<uint8_t, 20> compute_info_hash(const bencode::dict& info) {
     return hash;
 };
 
+class ReadFiles {
+    public:
+        std::vector<uint8_t> getBytesFromFile(const std::string file_path) {
+            std::ifstream file(file_path, std::ios::binary | std::ios::ate);
+            std::cout << "Reading file: " << file_path << std::endl;
+            if (!file.is_open()) {
+                throw std::runtime_error("Could not open file: " + file_path);
+            }
+            std::streamsize size = file.tellg();
+            file.seekg(0, std::ios::beg);
+
+            std::vector<char> buffer(size);
+            if (!file.read(buffer.data(), size)) {
+                throw std::runtime_error("Error while reading file");
+            }
+            file.close();
+            std::cout << "File read successfully, size: " << size << " bytes" << std::endl;
+            return std::vector<uint8_t>(buffer.begin(), buffer.end());
+        };
+};
+
 
 int main() {
     try {
         std::cout << "Enter the file path: ";
         std::string file_path;
         std::getline(std::cin, file_path);
-        ReadFile reader;
+        ReadFiles reader;
         if (file_path.empty()) {
             throw std::runtime_error("File path cannot be empty");
         }
