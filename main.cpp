@@ -8,20 +8,75 @@
 #include <iomanip> 
 #include <memory>
 #include <cstdint>   
+#include <Winsock2.h>
 #include <openssl/sha.h> 
 #include <curl/curl.h> 
 #include <bencoding.hpp> 
 
-
-struct Peer {
+struct PeerInfo {
     std::string ip;
     int port;
-    // Potentially add std::string id; for peer_id if parsing non-compact
+    // std::string peer_id; // Optional: If you parse peer_id from non-compact format, add it here
+
+    // Constructor for convenience (optional, but good practice)
+    // PeerInfo(std::string ip_addr, int p) : ip(std::move(ip_addr)), port(p) {};
 };
 
-void parseTrackerResponse (){
-    
-}
+std::vector<PeerInfo> parsePeersInfoVec(const bencode::data& peers_val){
+    std::vector<PeerInfo> discovered_peers;
+    if (std::holds_alternative<std::string>(peers_val.base())) {
+        const std::string& compact_peers_str = std::get<std::string>(peers_val.base());
+        if (compact_peers_str.length() % 6 != 0) {
+            std::cerr << "Invalid compact peers string length." << std::endl;
+        }
+        else {
+            for (size_t i = 0; i < compact_peers_str.length(); i += 6) {
+                // Extract IP (4 bytes)
+                unsigned char ip_bytes[4];
+                std::copy(compact_peers_str.begin() + i, compact_peers_str.begin() + i + 4, ip_bytes);
+                std::string ip = std::to_string(ip_bytes[0]) + "." +
+                                    std::to_string(ip_bytes[1]) + "." +
+                                    std::to_string(ip_bytes[2]) + "." +
+                                    std::to_string(ip_bytes[3]);
+
+                // Extract Port (2 bytes - network byte order, big-endian)
+                unsigned short port_net_order;
+                std::memcpy(&port_net_order, compact_peers_str.data() + i + 4, 2);
+                int port = ntohs(port_net_order); // ntohs converts network byte order to host byte order
+
+                std::cout << "Peer (compact): " << ip << ":" << port << std::endl;
+                discovered_peers.push_back({ip, port});
+            }
+        }
+        
+    } else if (std::holds_alternative<bencode::list>(peers_val.base())) {
+        const bencode::list& peers_list_of_dicts = std::get<bencode::list>(peers_val.base());
+        for (const auto& peers_dict_val: peers_list_of_dicts){
+            const bencode::dict& peer_dict = std::get<bencode::dict>(peers_dict_val.base());
+            std::string ip;
+            int port;
+            // Check if 'ip' key exists and is a string
+            if (peer_dict.count("ip") && std::holds_alternative<bencode::string>(peer_dict.at("ip").base())) {
+                ip = std::get<bencode::string>(peer_dict.at("ip").base());
+            } else {
+                std::cerr << "Warning: Peer dictionary missing 'ip' or 'ip' is not a string. Skipping." << std::endl;
+                continue;
+            }
+            // Check if 'port' key exists and is an integer
+            if (peer_dict.count("port") && std::holds_alternative<bencode::integer>(peer_dict.at("port").base())) {
+                port = static_cast<int>(std::get<bencode::integer>(peer_dict.at("port").base()));
+            } else {
+                std::cerr << "Warning: Peer dictionary missing 'port' or 'port' is not an integer. Skipping." << std::endl;
+                continue;
+            }
+            std::cout << "Peer (dict): " << ip << ":" << port << std::endl;
+            discovered_peers.push_back({ip, port});
+            }
+    } else {
+        std::cerr << "Warning: 'peers' value is neither string nor list." << std::endl;
+    }
+    return discovered_peers;
+};
 
 class Tracker {
 public:
@@ -89,14 +144,46 @@ public:
                 throw std::runtime_error("Top-level bencode structure is not a dictionary.");
             }
 
-            // Step 2: Parse the bencoded response
-            // call parseTrackerResponse(decoded_response)
+            const bencode::dict& tracker_response_dict = std::get<bencode::dict>(decoded_response);
 
-            // cout << decoded_response["peers"];
-            
-            // std::cout << "Tracker Response: " << response_body << std::endl;
+            if (tracker_response_dict.count("failure reason")) {
+                const auto& failure_reason_val = tracker_response_dict.at("failure reason");
+                if (std::holds_alternative<std::string>(failure_reason_val.base())) {
+                    std::string failure_reason = std::get<std::string>(failure_reason_val.base());
+                    std::cerr << "Tracker Error: " << failure_reason << std::endl;
+                    // Depending on your application, you might throw an exception,
+                    // log the error and return, or set an error flag.
+                    // For now, let's re-throw or handle as a critical error.
+                    throw std::runtime_error("Tracker returned error: " + failure_reason);
+                } else {
+                    std::cerr << "Tracker returned malformed 'failure reason'." << std::endl;
+                    throw std::runtime_error("Tracker returned malformed 'failure reason'.");
+                }
+            }
+
+            int announce_interval = 0;
+
+            if (tracker_response_dict.count("interval")) {
+                const auto& interval = tracker_response_dict.at("interval");
+                if (std::holds_alternative<long long>(interval.base())){
+                    announce_interval = static_cast<int>(std::get<long long> (interval.base()));
+                    std::cout << "Tracker Interval: " << announce_interval << " seconds" << std::endl;
+                }
+                else {
+                    std::cerr << "Tracker returned malformed 'interval'." << std::endl;
+                }
+            }
+            else {
+                std::cout << "No 'interval' field found, using default." << std::endl;
+                announce_interval = 1800; // Default to 30 minutes
+            }
 
             
+            std::vector<PeerInfo> discovered_peers;
+            if (tracker_response_dict.count("peers")){
+                const auto& peers_val = tracker_response_dict.at("peers");
+                discovered_peers = parsePeersInfoVec(peers_val);
+            }
 
         } catch (const std::exception& e) {
             std::cerr << "HTTP request failed: " << e.what() << std::endl;

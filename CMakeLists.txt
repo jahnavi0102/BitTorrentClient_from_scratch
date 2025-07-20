@@ -13,10 +13,16 @@ set(CURL_INCLUDE_DIR "C:/Users/jjain/vcpkg/packages/curl_x64-windows/include")
 find_package(CURL REQUIRED)
 
 add_executable(BitTorrentClient main.cpp)
+
+# if (WIN32)
+#     target_link_libraries(BitTorrentClient ws2_32)
+# endif()
+
 target_include_directories(BitTorrentClient PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Link both OpenSSL and Curl
 target_link_libraries(BitTorrentClient PRIVATE
     OpenSSL::SSL
-    CURL::libcurl # This is the target name usually exported by find_package(CURL)
+    CURL::libcurl
+    ws2_32 # This is the target name usually exported by find_package(CURL)
 )

@@ -165,3 +165,12 @@ warning message (string, optional): Similar to failure reason, but the response 
 min interval (integer, optional): The absolute minimum announce interval. Clients must not reannounce more frequently than this.
 
 tracker id (string, optional): A string that the client should send back on its next announcements.
+
+
+### Compact peers 
+
+Peers to be parsed as it is a string encoded.
+
+### Non compact peers
+
+Peers to be extracted directly from a string.
