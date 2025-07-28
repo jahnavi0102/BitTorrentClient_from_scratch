@@ -183,6 +183,7 @@ public:
             if (tracker_response_dict.count("peers")){
                 const auto& peers_val = tracker_response_dict.at("peers");
                 discovered_peers = parsePeersInfoVec(peers_val);
+                
             }
 
         } catch (const std::exception& e) {
