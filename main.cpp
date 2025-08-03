@@ -79,135 +79,137 @@ std::vector<PeerInfo> parsePeersInfoVec(const bencode::data& peers_val){
 };
 
 class Tracker {
-public:
-    Tracker(const std::string& announce_url)
-        : announce_url_(announce_url) {}
-
-    static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp){
-        size_t total_size = size * nmemb;
-        std::string* buffer_to_write_to = static_cast<std::string*>(userp);
-        buffer_to_write_to->append(static_cast<char*>(contents), total_size);
-
-        // IMPORTANT: Return the number of bytes we successfully handled.
-        // If we return anything less than total_size, libcurl will think
-        // something went wrong and might stop the transfer.
-        return total_size;
-    };
-
-    std::string sendHttpRequest(const std::string& url){
-        CURL *curl = nullptr;
-        CURLcode res;
-        std::string readBuffer;
-
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-
-        curl = curl_easy_init();
-        if (curl){
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
-
-            res = curl_easy_perform(curl);
-            if(res != CURLE_OK) {
-                throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
-            }
-            curl_easy_cleanup(curl);
-        }
-
-        curl_global_cleanup();
-        return readBuffer;
-    };
-
-    // Example: send a simple GET request to the tracker (HTTP only)
-    void announce(const std::string& info_hash, const std::string& peer_id, int port, int uploaded, int downloaded, int left) {
-        // Build the announce URL with query parameters
-        std::ostringstream url;
-        url << announce_url_
-            << "?info_hash=" << url_encode(info_hash)
-            << "&peer_id=" << url_encode(peer_id)
-            << "&port=" << port
-            << "&uploaded=" << uploaded
-            << "&downloaded=" << downloaded
-            << "&left=" << left
-            << "&compact=1";
-        std::cout << "Tracker announce URL: " << url.str() << std::endl;
-
-        try {
-            std::string response_body = sendHttpRequest(url.str());
-            bencode::data data = bencode::decode(response_body);
-            
-            std::cout << "decoded_response" << std::endl;
-            auto decoded_response = data.base();
-
-            if (!std::holds_alternative<bencode::dict>(decoded_response)) {
-                throw std::runtime_error("Top-level bencode structure is not a dictionary.");
-            }
-
-            const bencode::dict& tracker_response_dict = std::get<bencode::dict>(decoded_response);
-
-            if (tracker_response_dict.count("failure reason")) {
-                const auto& failure_reason_val = tracker_response_dict.at("failure reason");
-                if (std::holds_alternative<std::string>(failure_reason_val.base())) {
-                    std::string failure_reason = std::get<std::string>(failure_reason_val.base());
-                    std::cerr << "Tracker Error: " << failure_reason << std::endl;
-                    // Depending on your application, you might throw an exception,
-                    // log the error and return, or set an error flag.
-                    // For now, let's re-throw or handle as a critical error.
-                    throw std::runtime_error("Tracker returned error: " + failure_reason);
-                } else {
-                    std::cerr << "Tracker returned malformed 'failure reason'." << std::endl;
-                    throw std::runtime_error("Tracker returned malformed 'failure reason'.");
-                }
-            }
-
-            int announce_interval = 0;
-
-            if (tracker_response_dict.count("interval")) {
-                const auto& interval = tracker_response_dict.at("interval");
-                if (std::holds_alternative<long long>(interval.base())){
-                    announce_interval = static_cast<int>(std::get<long long> (interval.base()));
-                    std::cout << "Tracker Interval: " << announce_interval << " seconds" << std::endl;
-                }
-                else {
-                    std::cerr << "Tracker returned malformed 'interval'." << std::endl;
-                }
-            }
-            else {
-                std::cout << "No 'interval' field found, using default." << std::endl;
-                announce_interval = 1800; // Default to 30 minutes
-            }
-
-            
-            std::vector<PeerInfo> discovered_peers;
-            if (tracker_response_dict.count("peers")){
-                const auto& peers_val = tracker_response_dict.at("peers");
-                discovered_peers = parsePeersInfoVec(peers_val);
-                
-            }
-
-        } catch (const std::exception& e) {
-            std::cerr << "HTTP request failed: " << e.what() << std::endl;
-        }
-    }
-
     private:
         std::string announce_url_;
 
-    // Simple URL encoding function for info_hash and peer_id
-    std::string url_encode(const std::string& value) {
-        std::ostringstream escaped;
-        escaped.fill('0');
-        escaped << std::hex;
-        for (unsigned char c : value) {
-            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-                escaped << c;
-            } else {
-                escaped << '%' << std::setw(2) << int(c);
+    public:
+
+        Tracker(const std::string& announce_url)
+            : announce_url_(announce_url) {}
+
+        static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp){
+            size_t total_size = size * nmemb;
+            std::string* buffer_to_write_to = static_cast<std::string*>(userp);
+            buffer_to_write_to->append(static_cast<char*>(contents), total_size);
+
+            // IMPORTANT: Return the number of bytes we successfully handled.
+            // If we return anything less than total_size, libcurl will think
+            // something went wrong and might stop the transfer.
+            return total_size;
+        };
+
+        std::string sendHttpRequest(const std::string& url){
+            CURL *curl = nullptr;
+            CURLcode res;
+            std::string readBuffer;
+
+            curl_global_init(CURL_GLOBAL_DEFAULT);
+
+            curl = curl_easy_init();
+            if (curl){
+                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+                curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+                curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+                curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+
+                res = curl_easy_perform(curl);
+                if(res != CURLE_OK) {
+                    throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+                }
+                curl_easy_cleanup(curl);
             }
-        }
-        return escaped.str();
-    };
+
+            curl_global_cleanup();
+            return readBuffer;
+        };
+
+        // Example: send a simple GET request to the tracker (HTTP only)
+        std::vector<PeerInfo> announce(const std::string& info_hash, const std::string& peer_id, int port, int uploaded, int downloaded, int left) {
+            // Build the announce URL with query parameters
+            std::ostringstream url;
+            url << announce_url_
+                << "?info_hash=" << url_encode(info_hash)
+                << "&peer_id=" << url_encode(peer_id)
+                << "&port=" << port
+                << "&uploaded=" << uploaded
+                << "&downloaded=" << downloaded
+                << "&left=" << left
+                << "&compact=1";
+            std::cout << "Tracker announce URL: " << url.str() << std::endl;
+
+            try {
+                std::string response_body = sendHttpRequest(url.str());
+                bencode::data data = bencode::decode(response_body);
+                
+                std::cout << "decoded_response" << std::endl;
+                auto decoded_response = data.base();
+
+                if (!std::holds_alternative<bencode::dict>(decoded_response)) {
+                    throw std::runtime_error("Top-level bencode structure is not a dictionary.");
+                }
+
+                const bencode::dict& tracker_response_dict = std::get<bencode::dict>(decoded_response);
+
+                if (tracker_response_dict.count("failure reason")) {
+                    const auto& failure_reason_val = tracker_response_dict.at("failure reason");
+                    if (std::holds_alternative<std::string>(failure_reason_val.base())) {
+                        std::string failure_reason = std::get<std::string>(failure_reason_val.base());
+                        std::cerr << "Tracker Error: " << failure_reason << std::endl;
+                        // Depending on your application, you might throw an exception,
+                        // log the error and return, or set an error flag.
+                        // For now, let's re-throw or handle as a critical error.
+                        throw std::runtime_error("Tracker returned error: " + failure_reason);
+                    } else {
+                        std::cerr << "Tracker returned malformed 'failure reason'." << std::endl;
+                        throw std::runtime_error("Tracker returned malformed 'failure reason'.");
+                    }
+                }
+
+                int announce_interval = 0;
+
+                if (tracker_response_dict.count("interval")) {
+                    const auto& interval = tracker_response_dict.at("interval");
+                    if (std::holds_alternative<long long>(interval.base())){
+                        announce_interval = static_cast<int>(std::get<long long> (interval.base()));
+                        std::cout << "Tracker Interval: " << announce_interval << " seconds" << std::endl;
+                    }
+                    else {
+                        std::cerr << "Tracker returned malformed 'interval'." << std::endl;
+                    }
+                }
+                else {
+                    std::cout << "No 'interval' field found, using default." << std::endl;
+                    announce_interval = 1800; // Default to 30 minutes
+                }
+
+                
+                std::vector<PeerInfo> discovered_peers;
+                if (tracker_response_dict.count("peers")){
+                    const auto& peers_val = tracker_response_dict.at("peers");
+                    discovered_peers = parsePeersInfoVec(peers_val);
+                }
+
+                return discovered_peers;
+
+            } catch (const std::exception& e) {
+                std::cerr << "HTTP request failed: " << e.what() << std::endl;
+            }
+    }
+
+        // Simple URL encoding function for info_hash and peer_id
+        std::string url_encode(const std::string& value) {
+            std::ostringstream escaped;
+            escaped.fill('0');
+            escaped << std::hex;
+            for (unsigned char c : value) {
+                if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                    escaped << c;
+                } else {
+                    escaped << '%' << std::setw(2) << int(c);
+                }
+            }
+            return escaped.str();
+        };
 };
 
 std::array<uint8_t, 20> compute_info_hash(const bencode::dict& info) {
@@ -288,7 +290,12 @@ int main() {
         int left = length;
 
         Tracker tracker(announce);
-        tracker.announce(info_hash_str, peer_id, port, uploaded, downloaded, left);
+        std::vector<PeerInfo> peerList = tracker.announce(info_hash_str, peer_id, port, uploaded, downloaded, left);
+
+        // Looping through the peer list and creating a connection 
+        for (auto peer:peerList){
+            
+        }
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

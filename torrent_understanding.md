@@ -190,3 +190,13 @@ Now that we have a list of peers, it’s time to connect with them and start dow
 ###  Start a TCP connection with the peer. This is like starting a phone call.
 Complete a two-way BitTorrent handshake. “Hello?” “Hello."
 Exchange messages to download pieces. “I’d like piece #231 please."
+
+
+### BitTorrent Handshake
+The length of the protocol identifier, which is always 19 (0x13 in hex)
+The protocol identifier, called the pstr which is always BitTorrent protocol
+Eight reserved bytes, all set to 0. We’d flip some of them to 1 to indicate that we support certain extensions. But we don’t, so we’ll keep them at 0.
+The infohash that we calculated earlier to identify which file we want
+The Peer ID that we made up to identify ourselves
+
+
